@@ -7,7 +7,7 @@ About
 Building
 ---
 
-`cabal build` will generate the binary "./sdist/filter52".
+`cabal build` will generate the binary `./sdist/filter52`.
 Alternatively, you may use CMake and just run `make`.
 
 
@@ -23,7 +23,7 @@ System specific instructions follow:
 
 ### Arch Linux
 
-A "pure" Arch setup will use "netctl" for networking.
+A "pure" Arch setup will use `netctl` for networking.
 If that's your case  - that is, you don't use network-manager, wicd etc. -, the DNS "surgery" is done via `/etc/resolv.conf` and you can use the `run-arch.sh` script that automatically configures `filter52` and restores the system's original DNS settings when it shuts down.
 
 ### Ubuntu
@@ -39,12 +39,11 @@ After you close `filter52`, you must do the inverse so your system returns to it
 Author
 ---
 
-`filter52` was originally created by Elias Tandel, though the code is extensivelly based on [hosts-server](https://hackage.haskell.org/package/hosts-server).
+`filter52` was created by Elias Tandel, though the code is extensivelly based on [hosts-server](https://hackage.haskell.org/package/hosts-server).
 
 
 License
 ---
 
-Both `hosts-server` and `filter52` are licensed under GPLv3. See LICENSE for more details.
-
+`filter52` is licensed under GPLv3. See LICENSE for more details.
 
