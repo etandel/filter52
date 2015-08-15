@@ -3,9 +3,8 @@
 import Prelude hiding (takeWhile)
 import Control.Applicative ()
 import Control.Concurrent (forkIO)
-import Control.Monad (forever, (>=>))
+import Control.Monad (forever, (>=>), void)
 import Data.Default (Default(def))
-import Data.IP (IPv4, toIPv4)
 import Data.List (partition)
 import Data.Maybe
 import System.Environment (getArgs)
@@ -18,14 +17,10 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 
 
-type Host = (Domain, IPv4)
-
-
 data Conf = Conf
   { bufSize     :: Int
   , timeOut     :: Int
   , nameservers :: [HostName]
-  , hosts       :: [Host]
   }
 
 instance Default Conf where
@@ -33,7 +28,6 @@ instance Default Conf where
       { bufSize     = 512
       , timeOut     = 10 * 1000 * 1000
       , nameservers = []
-      , hosts       = []
       }
 
 toEither :: a -> Maybe b -> Either a b
@@ -42,7 +36,7 @@ toEither a = maybe (Left a) Right
 
 filterIPs :: DNSMessage -> DNSMessage
 filterIPs DNSMessage{..} =
-    DNSMessage { header = header
+    DNSMessage { header = header  -- TODO: Use lens to simplify this update
                , answer = filter not52 answer
                , question = question
                , authority = authority
@@ -123,35 +117,24 @@ run conf = withSocketsDo $ do
 {--
  - parse config file.
  -}
-readHosts :: FilePath -> IO ([Host], [HostName])
+readHosts :: FilePath -> IO [HostName]
 readHosts filename =
     B.readFile filename >>= either (fail . ("parse hosts fail:"++)) return . parseHosts
   where
-    parseHosts :: B.ByteString -> Either String ([Host], [HostName])
-    parseHosts s = let (serverLines, hostLines) = partition (B.isPrefixOf "nameserver") (B.lines s)
-                   in  (,) <$> mapM (parseOnly host) hostLines
-                           <*> mapM (parseOnly nameserver) serverLines
-
-    host :: Parser Host
-    host = do
-        skipSpace
-        ip <- toIPv4 . map read <$> (many1 digit `sepBy` string ".")
-        _ <- space
-        skipSpace
-        dom <- takeWhile (not . isSpace)
-        skipSpace
-        return (dom, ip)
+    parseHosts :: B.ByteString -> Either String [HostName]
+    parseHosts s = let (serverLines, _) = partition (B.isPrefixOf "nameserver") (B.lines s)
+                   in  mapM (parseOnly nameserver) serverLines
 
     nameserver :: Parser HostName
     nameserver = do
-        _ <- string "nameserver"
-        _ <- space
+        void $ string "nameserver"
+        void $ space
         skipSpace
         B.unpack <$> takeWhile (not . isSpace)
 
 main :: IO ()
 main = do
     args <- getArgs
-    (hosts, servers) <- readHosts $ fromMaybe "./hosts" (listToMaybe args)
-    print (hosts, servers)
-    run def{hosts=hosts, nameservers=servers}
+    servers <- readHosts $ fromMaybe "./resolv.conf" (listToMaybe args)
+    print servers
+    run def{nameservers=servers}
