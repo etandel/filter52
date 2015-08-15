@@ -41,16 +41,14 @@ cabal-version:       >=1.10
 
 executable filter52
   main-is:             Main.hs
+  ghc-options:         -O3
   
   -- Modules included in this executable, other than Main.
   -- other-modules:       
-  
   other-extensions:    RecordWildCards, OverloadedStrings
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 && <4.9, data-default >=0.5 && <0.6, network >=2.6 && <2.7, dns >=2.0 && <2.1, attoparsec >=0.13 && <0.14, bytestring >=0.10 && <0.11
-  
   hs-source-dirs:      src
-  
   default-language:    Haskell2010
   
