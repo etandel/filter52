@@ -53,6 +53,8 @@ filterIPs DNSMessage{..} =
         case rdata of
             RD_A ip -> Prelude.take 2 (show ip) /= "52"
             _       -> True
+    not52 _ = True
+
 
 
 {--
@@ -67,7 +69,8 @@ proxyRequest Conf{..} server req = do
             receive dnsSock
     rs <- makeResolvSeed rc
     withResolver rs $ \r ->
-        (toEither "proxy request timeout" >=> check >=> (Right . filterIPs))  <$> timeout timeOut (worker r)
+        (toEither "proxy request timeout" >=> check >=> (Right . filterIPs))
+        <$> timeout timeOut (worker r)
   where
     ident = identifier . header $ req
 
