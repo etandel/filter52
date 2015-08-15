@@ -1,7 +1,6 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 
 import Prelude hiding (takeWhile)
-import Control.Applicative ()
 import Control.Concurrent (forkIO)
 import Control.Monad (forever, (>=>), void)
 import Data.Default (Default(def))
@@ -12,7 +11,7 @@ import System.Timeout (timeout)
 import Network.Socket.ByteString (sendAll, sendAllTo, recvFrom)
 import Network.Socket hiding (recvFrom)
 import Network.DNS
-import Data.Attoparsec.Char8
+import Data.Attoparsec.Char8  -- TODO: This is deprecated. What's the correct way of doing stuff?
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 
@@ -30,6 +29,7 @@ instance Default Conf where
       , nameservers = []
       }
 
+
 toEither :: a -> Maybe b -> Either a b
 toEither a = maybe (Left a) Right
 
@@ -43,17 +43,14 @@ filterIPs DNSMessage{..} =
                , additional = additional }
   where
     not52 :: ResourceRecord -> Bool
-    not52 ResourceRecord{..} =
+    not52 ResourceRecord{..} =  -- TODO: These patterns should be refactored
         case rdata of
             RD_A ip -> Prelude.take 2 (show ip) /= "52"
             _       -> True
     not52 _ = True
 
 
-
-{--
- - Proxy dns request to a real dns server.
- -}
+{-- Proxy dns request to a real dns server. --}
 proxyRequest :: Conf -> HostName -> DNSMessage -> IO (Either String DNSMessage)
 proxyRequest Conf{..} server req = do
     let rc = defaultResolvConf { resolvInfo = RCHostName server }
@@ -74,33 +71,31 @@ proxyRequest Conf{..} server req = do
                         then Right rsp
                         else Left "identifier not match"
 
-{--
- - Handle A query for domain suffixes configured, and proxy other requests to real dns server.
- -}
 
+{-- Handle A query for domain suffixes configured, and proxy other requests to
+ -  a real dns server.
+ --}
 handleRequest :: Conf -> DNSMessage -> IO (Either String DNSMessage)
 handleRequest conf req =
     case nameservers conf of
-        [] -> return $ Left "nameserver not configured."
+        []    -> return $ Left "nameserver not configured."
         srv:_ -> proxyRequest conf srv req
 
-{--
- - Parse request and compose response.
- -}
+
+{-- Parse request and compose response. --}
 handlePacket :: Conf -> Socket -> SockAddr -> B.ByteString -> IO ()
 handlePacket conf@Conf{..} sock addr s =
-    either
-    (putStrLn . ("decode fail:"++))
-    (\req -> do
-        handleRequest conf req >>=
-            either
-            putStrLn
-            (\rsp -> let packet = B.concat . BL.toChunks $ encode rsp
-                     in  timeout timeOut (sendAllTo sock packet addr) >>=
-                         maybe (putStrLn "send response timeout") return
-            )
-    )
-    (decode (BL.fromChunks [s]))
+    case decode (BL.fromChunks [s]) of
+        Left errmsg -> putStrLn $ "decode fail:" ++ errmsg
+        Right req ->
+            handleRequest conf req >>=
+                either
+                putStrLn
+                (\rsp -> let packet = B.concat . BL.toChunks $ encode rsp
+                         in  timeout timeOut (sendAllTo sock packet addr) >>=
+                             maybe (putStrLn "send response timeout") return
+                )
+
 
 run :: Conf -> IO ()
 run conf = withSocketsDo $ do
@@ -114,12 +109,12 @@ run conf = withSocketsDo $ do
         (s, addr) <- recvFrom sock (bufSize conf)
         forkIO $ handlePacket conf sock addr s
 
-{--
- - parse config file.
- -}
-readHosts :: FilePath -> IO [HostName]
-readHosts filename =
-    B.readFile filename >>= either (fail . ("parse hosts fail:"++)) return . parseHosts
+
+{-- parse config file. --}
+readConf :: FilePath -> IO [HostName]
+readConf filename = do
+    content <- B.readFile filename
+    either (fail . ("fail parsing conf: " ++)) return $ parseHosts content
   where
     parseHosts :: B.ByteString -> Either String [HostName]
     parseHosts s = let (serverLines, _) = partition (B.isPrefixOf "nameserver") (B.lines s)
@@ -132,9 +127,11 @@ readHosts filename =
         skipSpace
         B.unpack <$> takeWhile (not . isSpace)
 
+
 main :: IO ()
 main = do
     args <- getArgs
-    servers <- readHosts $ fromMaybe "./resolv.conf" (listToMaybe args)
+    servers <- readConf $ fromMaybe "./resolv.conf" (listToMaybe args)
     print servers
     run def{nameservers=servers}
+
