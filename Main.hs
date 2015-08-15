@@ -1,10 +1,9 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 
 import Prelude hiding (takeWhile)
-import qualified Prelude as P
-import Control.Applicative ( (<$>), (<*>) )
+import Control.Applicative ()
 import Control.Concurrent (forkIO)
-import Control.Monad (forever, (=<<), (<=<), (>=>))
+import Control.Monad (forever, (>=>))
 import Data.Default (Default(def))
 import Data.IP (IPv4, toIPv4)
 import Data.List (partition)
@@ -18,8 +17,6 @@ import Data.Attoparsec.Char8
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 
-
-import Debug.Trace
 
 type Host = (Domain, IPv4)
 
@@ -42,17 +39,8 @@ instance Default Conf where
 toEither :: a -> Maybe b -> Either a b
 toEither a = maybe (Left a) Right
 
-{--
- - Proxy dns request to a real dns server.
- -}
 
-
-perhapsFilterIPs :: Either String DNSFormat -> Either String DNSFormat
-perhapsFilterIPs (Right message) = Right $ filterIPs message
-perhapsFilterIPs e = e
-
-
-filterIPs :: DNSFormat -> DNSFormat
+filterIPs :: DNSMessage -> DNSMessage
 filterIPs DNSMessage{..} =
     DNSMessage { header = header
                , answer = filter not52 answer
@@ -67,7 +55,10 @@ filterIPs DNSMessage{..} =
             _       -> True
 
 
-proxyRequest :: Conf -> HostName -> DNSFormat -> IO (Either String DNSFormat)
+{--
+ - Proxy dns request to a real dns server.
+ -}
+proxyRequest :: Conf -> HostName -> DNSMessage -> IO (Either String DNSMessage)
 proxyRequest Conf{..} server req = do
     let rc = defaultResolvConf { resolvInfo = RCHostName server }
         worker Resolver{..} = do
@@ -80,7 +71,7 @@ proxyRequest Conf{..} server req = do
   where
     ident = identifier . header $ req
 
-    check :: DNSFormat -> Either String DNSFormat
+    check :: DNSMessage -> Either String DNSMessage
     check rsp = let hdr = header rsp
                 in  if identifier hdr == ident
                         then Right rsp
@@ -90,7 +81,7 @@ proxyRequest Conf{..} server req = do
  - Handle A query for domain suffixes configured, and proxy other requests to real dns server.
  -}
 
-handleRequest :: Conf -> DNSFormat -> IO (Either String DNSFormat)
+handleRequest :: Conf -> DNSMessage -> IO (Either String DNSMessage)
 handleRequest conf req =
     case nameservers conf of
         [] -> return $ Left "nameserver not configured."
