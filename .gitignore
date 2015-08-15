@@ -2,3 +2,5 @@ dist/*
 *.hi
 *.o
 resolv.conf
+.cabal-sandbox/*
+cabal-sandbox.config
