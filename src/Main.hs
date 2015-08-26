@@ -37,7 +37,9 @@ toEither a = maybe (Left a) Right
 filterIPs :: DNSMessage -> DNSMessage
 filterIPs DNSMessage{..} =
     DNSMessage { header = header  -- TODO: Use lens to simplify this update
-               , answer = filter not52 answer
+               , answer = case filter not52 answer of
+                               []  -> answer
+                               ips -> ips
                , question = question
                , authority = authority
                , additional = additional }
